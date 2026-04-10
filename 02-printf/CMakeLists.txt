@@ -9,23 +9,26 @@ set(PICO_PLATFORM rp2040)
 include(pico_sdk_import.cmake)
 
 # Создаем проект. Аргументом указывается имя проекта - типовая строчка для любого CMakeLists.txt
-project(01_blink)
+project(02-printf)
 
 # Вызываем функцию инициализации Pico SDK - специфика сборки под Pico
 pico_sdk_init()
 
 # Добавляем в проект файлы с исходным кодом - типовая строчка для любого CMakeLists.txt
-add_executable(01_blink
+add_executable(${PROJECT_NAME}
 	${CMAKE_CURRENT_SOURCE_DIR}/main.c
 )
 
 # Указываем на какие библиотеки ссылается наш код - типовая строчка для любого CMakeLists.txt
-target_link_libraries(01_blink
+target_link_libraries(${PROJECT_NAME}
 	pico_stdlib
 )
 
 # Указываем файл, в котором находится линкер скрипт - специфика сборки под МК
-pico_set_linker_script(01_blink ${CMAKE_CURRENT_SOURCE_DIR}/memmap_rp2040.ld)
+pico_set_linker_script(${PROJECT_NAME} ${CMAKE_CURRENT_SOURCE_DIR}/linker_rp2040.ld)
+
+pico_enable_stdio_uart(${PROJECT_NAME} 0)
+pico_enable_stdio_usb(${PROJECT_NAME} 1)
 
 # Добавляем задачи генерации бинарника в разных форматах - специфика сборки под Pico
-pico_add_extra_outputs(01_blink)
+pico_add_extra_outputs(${PROJECT_NAME})
