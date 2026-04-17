@@ -14,8 +14,25 @@ int main()
     {
         char symbol = getchar();
         printf("received char: %c [ ASCII code: %d ]\n", symbol, symbol);
-        if(symbol == 'e') gpio_put(LED_PIN, 1);
-        if(symbol == 'v') gpio_put(LED_PIN, 0);
-        if(symbol == 'd') printf("led enable done\n");
+
+        switch(symbol)
+        {
+        case 'e':
+            gpio_put(LED_PIN, true);
+            printf("led enable done\n");
+            break;
+        
+        case 'd':
+            gpio_put(LED_PIN, 0);
+            printf("led disable done\n");
+            break;
+
+        case 'v':
+            printf("device name: 'my-pico-device', firmware version: v0.0.1\n");
+            break;
+
+        default:
+            break;
+        }
     }
 }
