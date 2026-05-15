@@ -4,6 +4,7 @@
 #include "stdio-task/stdio-task.h"
 #include "protocol-task/protocol-task.h"
 #include "led-task/led-task.h"
+#include "adc-task/adc-task.h"
 
 #define DEVICE_NAME "RP2040 Control Device"
 #define DEVICE_VRSN "v1.0.0"
@@ -46,6 +47,29 @@ void led_blink_set_period_ms_callback(const char* args)
     printf("Blink period set to %u ms\n", period_ms);
 }
 
+void get_adc_callback(const char* args)
+{
+    float voltage_V = adc_task_get_voltage();
+    printf("%f\n", voltage_V);
+}
+
+void get_temp_callback(const char* args)
+{
+    float temp_C = adc_task_get_temperature();
+    printf("%f\n", temp_C);
+}
+
+void tm_start_callback(const char* args)
+{
+    adc_task_set_state(ADC_TASK_STATE_RUN);
+    printf("Measurements started\n");
+}
+
+void tm_stop_callback(const char* args)
+{
+    adc_task_set_state(ADC_TASK_STATE_IDLE);
+    printf("Measurements stopped\n");
+}
 
 void help_callback(const char* args);
 
@@ -56,8 +80,10 @@ api_t device_api[] =
     {"off", led_off_callback, "switch off led"},
     {"blink", led_blink_callback, "provide unblocking blinking"},
     {"set_period", led_blink_set_period_ms_callback, "set blink period in milliseconds"},
-    {"mem", mem_command_callback, "read memory at hex address. Usage: mem <hex_address>"},
-    {"wmem", wmem_command_callback, "write memory at hex address. Usage: wmem <hex_address> <hex_value>"},
+    {"get_adc", get_adc_callback, "read ADC voltage from GPIO26"},
+    {"get_temp", get_temp_callback, "read internal temperature sensor"},
+    {"tm_start", tm_start_callback, "start automatic measurements"},
+    {"tm_stop", tm_stop_callback, "stop automatic measurements"},
     {"help", help_callback, "print commands description"},
     {NULL, NULL, NULL},
 };
@@ -80,6 +106,7 @@ int main()
     stdio_task_init();
     protocol_task_init(device_api);
     led_task_init();
+    adc_task_init();
 
     char* received_string = NULL;
 
@@ -91,6 +118,7 @@ int main()
             protocol_task_handle(received_string);
         }
         led_task_handler();
+        adc_task_handle();
     }
 
     return 0;
