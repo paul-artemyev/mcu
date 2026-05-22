@@ -1,12 +1,18 @@
-#include <stdio.h>
-#include <string.h>
+#include "pico/stdio.h"
+#include "stdio.h"
 #include "pico/stdlib.h"
+#include "stdlib.h"
+#include "hardware/gpio.h"
 #include "stdio-task/stdio-task.h"
 #include "protocol-task/protocol-task.h"
 #include "led-task/led-task.h"
+#include "mem-task/mem-task.h"
 
-#define DEVICE_NAME "RP2040 Control Device"
-#define DEVICE_VRSN "v1.0.0"
+#define DEVICE_NAME "my-pico-device"
+#define DEVICE_VRSN "v0.0.1"
+
+uint32_t global_variable = 0;
+const uint32_t constant_variable = 42;
 
 void version_callback(const char* args)
 {
@@ -15,83 +21,77 @@ void version_callback(const char* args)
 
 void led_on_callback(const char* args)
 {
+    printf("Led turned on\n");
     led_task_state_set(LED_STATE_ON);
-    printf("LED turned ON\n");
 }
 
 void led_off_callback(const char* args)
 {
+    printf("Led turned off\n");
     led_task_state_set(LED_STATE_OFF);
-    printf("LED turned OFF\n");
 }
 
 void led_blink_callback(const char* args)
 {
+    printf("Led is blinking now\n");
     led_task_state_set(LED_STATE_BLINK);
-    printf("LED blinking mode activated\n");
 }
 
-void led_blink_set_period_ms_callback(const char* args)
-{
+void led_blink_set_period_ms_callback(const char* args) {
     uint32_t period_ms = 0;
     sscanf(args, "%u", &period_ms);
-    
-    if (period_ms == 0)
-    {
-        printf("Error: invalid period. Usage: set_period <milliseconds>\n");
+    if (period_ms == 0) {
+        printf("Invalid time\n");
         return;
     }
-    
     led_task_set_blink_period_ms(period_ms);
-    printf("Blink period set to %u ms\n", period_ms);
 }
 
+void mem_callback(const char* args)
+{
+    uint32_t addr;
+    sscanf(args, "%x", &addr);  // ИСПРАВЛЕНО: %x для hex
+    mem(addr);
+}
+
+void wmem_callback(const char* args) {
+    uint32_t addr = 0, value = 0;
+    sscanf(args, "%x %x", &addr, &value);  // ИСПРАВЛЕНО: %x для hex
+    wmem(addr, value);
+}
 
 void help_callback(const char* args);
 
 api_t device_api[] =
 {
     {"version", version_callback, "get device name and firmware version"},
-    {"on", led_on_callback, "switch on led"},
-    {"off", led_off_callback, "switch off led"},
-    {"blink", led_blink_callback, "provide unblocking blinking"},
-    {"set_period", led_blink_set_period_ms_callback, "set blink period in milliseconds"},
-    {"mem", mem_command_callback, "read memory at hex address. Usage: mem <hex_address>"},
-    {"wmem", wmem_command_callback, "write memory at hex address. Usage: wmem <hex_address> <hex_value>"},
-    {"help", help_callback, "print commands description"},
-    {NULL, NULL, NULL},
+    {"on",      led_on_callback,  "turned led on"},
+    {"off",     led_off_callback, "turned led off"},
+    {"blink",   led_blink_callback, "led is blinking now"},
+    {"set_period", led_blink_set_period_ms_callback, "blinking period changed"},
+    {"mem", mem_callback, "Address value printed"},
+    {"wmem", wmem_callback, "Address value changed"},
+    {"help", help_callback, "print commands with descriptions"},
+    {NULL, NULL, NULL}
 };
 
-void help_callback(const char* args)
-{
-    printf("Available commands:\n");
-    for (int i = 0; i < sizeof(device_api) / sizeof(api_t) - 1; i++)
-    {
-        if (device_api[i].command_name != NULL)
-        {
-            printf("  %s - %s\n", device_api[i].command_name, device_api[i].command_help);
-        }
+void help_callback(const char* args) {
+    printf("Доступные команды:\n");
+    for (int i = 0; device_api[i].command_name != NULL; i++) {
+        printf("Команда: %s : %s\n",
+            device_api[i].command_name,
+            device_api[i].command_help);
     }
 }
 
 int main()
 {
     stdio_init_all();
+    led_task_init();
     stdio_task_init();
     protocol_task_init(device_api);
-    led_task_init();
-
-    char* received_string = NULL;
-
-    while (1)
-    {
-        received_string = stdio_task_handler();
-        if (received_string != NULL)
-        {
-            protocol_task_handle(received_string);
-        }
+    while (1) {
+        protocol_task_handle(stdio_task_handler());
         led_task_handler();
     }
-
-    return 0;
 }

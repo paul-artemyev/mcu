@@ -10,8 +10,4 @@ typedef struct
 } api_t;
 
 void protocol_task_init(api_t* device_api);
-
 void protocol_task_handle(char* command_string);
-
-void mem_command_callback(const char* args);
-void wmem_command_callback(const char* args);

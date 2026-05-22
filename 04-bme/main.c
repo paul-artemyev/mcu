@@ -7,9 +7,7 @@
 #include "stdio-task/stdio-task.h"
 #include "../libs/protocol/include/protocol-task.h"
 #include "../libs/bme280-driver/include/bme280-driver.h"
-#include "led-task/led-task.h"
-#include "stdio-task/stdio-task.h"
-
+#include "../libs/bme280-driver/include/bme280-regs.h"
 
 #define DEVICE_NAME "BME280 Control Device"
 #define DEVICE_VRSN "v1.0.0"
@@ -122,17 +120,120 @@ void help_callback(const char* args)
     printf("Available commands:\n");
     printf("  version - get device name and firmware version\n");
     printf("  read_regs <hex_addr> <hex_count> - read BME280 registers\n");
-    printf("  help - print commands description\n");
+    printf("  write_reg <hex_addr> <hex_value> - write BME280 register\n");
+    printf("  bme280_init - initialize BME280 with oversampling x1, normal mode\n");
+    printf("  temp_raw - read raw temperature value (20-bit)\n");
+    printf("  pres_raw - read raw pressure value (20-bit)\n");
+    printf("  hum_raw - read raw humidity value (16-bit)\n");
+    printf("  read_all - read all three raw values\n");
+    printf("  temp - read temperature in °C\n");
+    printf("  pres - read pressure in hPa\n");
+    printf("  hum - read humidity in %%\n");
+    printf("  all - read all measurements in SI units\n");
+    printf("  help - print this help\n");
 }
+
+int32_t read_temp_20bit(void)
+{
+    uint8_t data[3] = {0};
+    bme280_read_regs(BME280_REG_temp_msb, data, 3);
+    return ((int32_t)data[0] << 12) | ((int32_t)data[1] << 4) | ((int32_t)data[2] >> 4);
+}
+
+uint32_t read_pres_20bit(void)
+{
+    uint8_t data[3] = {0};
+    bme280_read_regs(BME280_REG_press_msb, data, 3);
+    return ((uint32_t)data[0] << 12) | ((uint32_t)data[1] << 4) | ((uint32_t)data[2] >> 4);
+}
+
+uint16_t read_hum_16bit(void)
+{
+    uint8_t data[2] = {0};
+    bme280_read_regs(BME280_REG_hum_msb, data, 2);
+    return (data[0] << 8) | data[1];
+}
+
+void temp_raw_callback(const char* args) 
+{ 
+    int32_t raw = bme280_read_temp_raw();
+    printf("Temp raw (20-bit): %ld (0x%05lX)\n", raw, raw); 
+}
+
+void pres_raw_callback(const char* args) 
+{ 
+    uint32_t raw = bme280_read_pres_raw();
+    printf("Press raw (20-bit): %lu (0x%05lX)\n", raw, raw); 
+}
+
+void hum_raw_callback(const char* args)  
+{ 
+    uint32_t raw = bme280_read_hum_raw();
+    printf("Hum raw (16-bit): %lu (0x%04lX)\n", raw, raw); 
+}
+
+void bme280_init_callback(const char* args)
+{
+    uint8_t id;
+    bme280_read_regs(BME280_REG_id, &id, 1);
+    if (id != 0x60) { 
+        printf("ERROR: BME280 not detected! ID=0x%02X\n", id); 
+        return; 
+    }
+    printf("BME280 detected (ID: 0x%02X)\n", id);
+    
+    bme280_write_reg(BME280_REG_ctrl_hum, 0b001 << 0);  
+    printf("Ctrl_hum configured: 0x%02X\n", 0b001 << 0);
+    
+    bme280_write_reg(BME280_REG_config, (0b001 << 5)); 
+    printf("Config configured: 0x%02X\n", 0b001 << 5);
+    
+    uint8_t ctrl_val = (0b001 << 5) | (0b001 << 2) | (0b11 << 0);
+    bme280_write_reg(BME280_REG_ctrl_meas, ctrl_val);
+    printf("Ctrl_meas configured: 0x%02X\n", ctrl_val);
+    
+    printf("BME280 initialized\n");
+    sleep_ms(100);
+}
+
+void temp_callback(const char* args)
+{
+    float temp = bme280_read_temperature();
+    printf("Temperature: %.2f °C\n", temp);
+}
+
+void pres_callback(const char* args)
+{
+    float press = bme280_read_pressure();
+    printf("Pressure: %.2f hPa (%.2f Pa)\n", press, press * 100.0f);
+}
+
+void hum_callback(const char* args)
+{
+    float hum = bme280_read_humidity();
+    printf("Humidity: %.2f %%\n", hum);
+}
+
 
 api_t device_api[] =
 {
     {"version", version_callback, "get device name and firmware version"},
     {"read_regs", read_regs_callback, "read BME280 registers. Usage: read_regs <hex_addr> <hex_count>"},
     {"write_reg", write_reg_callback, "write BME280 register. Usage: write_reg <hex_addr> <hex_value>"},
+    {"bme280_init", bme280_init_callback, "initialize BME280 with oversampling x1, normal mode"},
+    
+    {"temp_raw", temp_raw_callback, "read raw temperature value (20-bit)"},
+    {"pres_raw", pres_raw_callback, "read raw pressure value (20-bit)"},
+    {"hum_raw", hum_raw_callback, "read raw humidity value (16-bit)"},
+    
+    {"temp", temp_callback, "read temperature in °C"},
+    {"pres", pres_callback, "read pressure in hPa (hectopascals)"},
+    {"hum", hum_callback, "read humidity in %"},
+    
     {"help", help_callback, "print commands description"},
     {NULL, NULL, NULL},
 };
+
 int main()
 {
     stdio_init_all();
@@ -149,9 +250,6 @@ int main()
     bme280_init(rp2040_i2c_read, rp2040_i2c_write);
     
     protocol_task_init(device_api);
-    
-    printf("\n=== BME280 Test Program ===\n");
-    printf("Type 'help' for available commands\n\n");
     
     uint8_t chip_id = 0;
     bme280_read_regs(0xD0, &chip_id, 1);
